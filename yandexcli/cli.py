@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import readline
 import sys
@@ -9,10 +10,11 @@ from pathlib import Path
 
 from .agent import Agent
 from .client import YandexAPIError, YandexClient
+from .input import PasteAwarePrompt, disable_bracketed_paste, enable_bracketed_paste, readline_history
 from .models import model_menu, resolve_model_uri
 from .safety import SafetyPolicy
 from .tools import ToolRunner
-from .ui import ChatStatus, paint, prompt as ui_prompt, render_assistant, render_header, render_notice, render_shortcuts, supports_color
+from .ui import ChatStatus, paint, prompt as ui_prompt, render_assistant, render_header, render_notice, render_shortcuts, render_thinking, supports_color
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -73,40 +75,46 @@ def build_parser() -> argparse.ArgumentParser:
 def run_chat(agent: Agent, *, color: bool = True) -> int:
     history_path = history_file()
     history_enabled = load_history(history_path)
+    prompt_reader = PasteAwarePrompt(ui_prompt(color=color), history_enabled=history_enabled, history=readline_history())
 
-    render_header(chat_status(agent, history_path, history_enabled), color=color)
-    if not history_enabled:
-        render_notice(f"History disabled: cannot access {history_path}", color=color)
-    while True:
-        try:
-            prompt = input(ui_prompt(color=color)).strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            if history_enabled:
-                save_history(history_path)
-            return 0
-        if not prompt:
-            continue
-        if prompt == "?":
-            render_shortcuts(color=color)
-            if history_enabled:
-                save_history(history_path)
-            continue
-        if prompt.startswith("/"):
-            if handle_slash_command(prompt, agent, history_path=history_path, history_enabled=history_enabled, color=color):
+    enable_bracketed_paste()
+    try:
+        render_header(chat_status(agent, history_path, history_enabled), color=color)
+        if not history_enabled:
+            render_notice(f"History disabled: cannot access {history_path}", color=color)
+        while True:
+            try:
+                prompt = prompt_reader.read()
+            except (EOFError, KeyboardInterrupt):
+                print()
                 if history_enabled:
                     save_history(history_path)
                 return 0
+            if not prompt:
+                continue
+            if prompt == "?":
+                render_shortcuts(color=color)
+                if history_enabled:
+                    save_history(history_path)
+                continue
+            if prompt.startswith("/"):
+                if handle_slash_command(prompt, agent, history_path=history_path, history_enabled=history_enabled, color=color):
+                    if history_enabled:
+                        save_history(history_path)
+                    return 0
+                if history_enabled:
+                    save_history(history_path)
+                continue
+            if prompt in {":q", ":quit", "exit"}:
+                if history_enabled:
+                    save_history(history_path)
+                return 0
+            render_thinking(color=color)
+            render_assistant(agent.run(prompt), color=color)
             if history_enabled:
                 save_history(history_path)
-            continue
-        if prompt in {":q", ":quit", "exit"}:
-            if history_enabled:
-                save_history(history_path)
-            return 0
-        render_assistant(agent.run(prompt), color=color)
-        if history_enabled:
-            save_history(history_path)
+    finally:
+        disable_bracketed_paste()
 
 
 def handle_slash_command(command: str, agent: Agent, *, history_path: Path, history_enabled: bool, color: bool = True) -> bool:
@@ -184,8 +192,8 @@ def load_history(path: Path) -> bool:
             path.touch(mode=0o600)
             return True
         for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-            item = line.strip()
-            if item and item != "_HiStOrY_V2_":
+            item = decode_history_line(line)
+            if item:
                 readline.add_history(item)
         return True
     except OSError:
@@ -198,11 +206,26 @@ def save_history(path: Path) -> None:
         length = readline.get_current_history_length()
         start = max(1, length - 999)
         items = [readline.get_history_item(index) for index in range(start, length + 1)]
-        text = "\n".join(item for item in items if item) + "\n"
+        text = "\n".join(encode_history_item(item) for item in items if item) + "\n"
         path.write_text(text, encoding="utf-8")
         path.chmod(0o600)
     except OSError:
         pass
+
+
+def encode_history_item(item: str) -> str:
+    return json.dumps(item, ensure_ascii=False)
+
+
+def decode_history_line(line: str) -> str:
+    stripped = line.strip()
+    if not stripped or stripped == "_HiStOrY_V2_":
+        return ""
+    try:
+        decoded = json.loads(stripped)
+    except json.JSONDecodeError:
+        return stripped
+    return decoded if isinstance(decoded, str) else ""
 
 
 def chat_status(agent: Agent, history_path: Path, history_enabled: bool) -> ChatStatus:

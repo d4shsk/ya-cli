@@ -116,6 +116,10 @@ def render_notice(text: str, *, color: bool = True) -> None:
     print(paint(text, YELLOW, enabled=color))
 
 
+def render_thinking(*, color: bool = True) -> None:
+    print(paint("Думаю...", CYAN, enabled=color))
+
+
 def render_error(text: str, *, color: bool = True) -> None:
     print(paint(text, RED, enabled=color))
 
