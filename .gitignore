@@ -1,0 +1,23 @@
+.env
+.env.*
+!.env.example
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.venv/
+venv/
+env/
+dist/
+build/
+*.egg-info/
+pip-wheel-metadata/
+
+# Local playgrounds and tool state
+user-test/
+.omg/

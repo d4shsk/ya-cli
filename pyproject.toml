@@ -1,0 +1,16 @@
+[project]
+name = "yandexcli"
+version = "0.1.0"
+description = "Terminal coding agent for YandexGPT and Alice AI models."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["certifi>=2024.0.0"]
+
+[project.scripts]
+yandexcli = "yandexcli.cli:main"
+ygpt = "yandexcli.cli:main"
+yandexgpt = "yandexcli.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
