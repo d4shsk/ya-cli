@@ -2,6 +2,10 @@
 
 Терминальный coding agent для моделей YandexGPT и Alice AI. CLI использует нативный цикл Yandex `toolCallList` / `toolResultList`, поэтому модель вызывает инструменты через API, а не печатает псевдо-tool-call в чат.
 
+ЭТОТ ПРОЕКТ НЕ СВЯЗАН С YANDEX.  
+
+[![tg-image-2440385494.png](https://i.postimg.cc/L6Xvpqcn/tg-image-2440385494.png)](https://postimg.cc/kD0WN5Xm)
+
 ## 1. Токены
 
 Укажите данные Yandex Cloud в файле `.env` в корне проекта:
