@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from .legacy import parse_legacy_tool_call
+from .legacy import contains_pseudo_tool_call, parse_legacy_tool_calls
 from .safety import SafetyError
 from .tools import TOOL_SCHEMAS, ToolRunner, canonical_tool_name
 
@@ -12,10 +12,25 @@ from .tools import TOOL_SCHEMAS, ToolRunner, canonical_tool_name
 SYSTEM_PROMPT = """You are YandexCLI, a terminal coding assistant.
 
 Use the provided tools whenever you need to inspect, create, or edit files.
+Before starting work, use the workspace snapshot from the user message and inspect existing files when needed.
 Do not print file contents in chat when a file should be created or modified.
 Call write_file with path and content instead.
+Never print pseudo tool calls like [write_file] or [TOOL_CALL_START].
+For HTML/CSS/frontend tasks: do not reference local images, fonts, scripts, or other assets unless they already exist in the workspace or you create them. If assets are unavailable, use CSS, inline SVG, gradients, or self-contained markup instead of broken local paths.
 Prefer small, focused changes. Never attempt to access files outside the workspace.
 When unsure about security implications, mention the concern and update vulnerabilities.md.
+"""
+
+
+FRONTEND_QA_PROMPT = """Проверь только что записанные HTML/CSS/frontend-файлы перед финальным ответом.
+
+Обязательно проверь:
+- нет ли ссылок на несуществующие локальные изображения, CSS, JS, шрифты или другие assets;
+- не осталось ли placeholder-путей вроде logo.png, product1.jpg, door-background.jpg без созданных файлов;
+- страница не должна полагаться на локальные assets, которых нет в workspace;
+- если assets отсутствуют, исправь HTML/CSS через CSS-градиенты, inline SVG, data URI или самодостаточную разметку.
+
+Если нужно исправить файлы, используй write_file. Если всё корректно, кратко ответь, что готово.
 """
 
 
@@ -39,14 +54,25 @@ class Agent:
     temperature: float = 0.2
     max_tokens: int = 8192
     verbose: bool = True
+    messages: list[dict[str, Any]] | None = None
 
-    def run(self, prompt: str, history: list[dict[str, Any]] | None = None) -> str:
-        messages = list(history or [{"role": "system", "text": SYSTEM_PROMPT}])
+    def run(self, prompt: str, history: list[dict[str, Any]] | None = None, *, remember: bool = False) -> str:
+        if history is not None:
+            messages = list(history)
+        elif remember:
+            messages = self.messages if self.messages is not None else [{"role": "system", "text": SYSTEM_PROMPT}]
+        else:
+            messages = [{"role": "system", "text": SYSTEM_PROMPT}]
+
+        if _needs_workspace_snapshot(messages):
+            messages.append({"role": "user", "text": self._workspace_snapshot_message()})
+
         messages.append({"role": "user", "text": prompt})
+        frontend_qa_requests = 0
 
         for iteration in range(1, self.max_iterations + 1):
             response = self.client.complete(
-                messages=messages,
+                messages=[dict(message) for message in messages],
                 tools=TOOL_SCHEMAS,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
@@ -59,28 +85,64 @@ class Agent:
                     print(f"[agent] iteration {iteration}: executing {len(native_calls)} native tool call(s)")
                 messages.append({"role": "assistant", "toolCallList": {"toolCalls": native_calls}})
                 messages.append(self._execute_tool_calls(native_calls))
+                if _has_frontend_write(native_calls) and frontend_qa_requests < 2:
+                    frontend_qa_requests += 1
+                    messages.append({"role": "user", "text": FRONTEND_QA_PROMPT})
                 continue
 
             text = message.get("text", "")
-            legacy_call = parse_legacy_tool_call(text) if isinstance(text, str) else None
-            if legacy_call:
+            legacy_calls = parse_legacy_tool_calls(text) if isinstance(text, str) else []
+            if legacy_calls:
                 if self.verbose:
-                    print(f"[agent] iteration {iteration}: recovered legacy text tool call `{legacy_call.name}`")
-                tool_call = {
-                    "functionCall": {
-                        "name": canonical_tool_name(legacy_call.name),
-                        "arguments": legacy_call.arguments,
+                    print(f"[agent] iteration {iteration}: recovered {len(legacy_calls)} text tool call(s)")
+                tool_calls = [
+                    {
+                        "functionCall": {
+                            "name": canonical_tool_name(legacy_call.name),
+                            "arguments": legacy_call.arguments,
+                        }
                     }
-                }
-                messages.append({"role": "assistant", "toolCallList": {"toolCalls": [tool_call]}})
-                messages.append(self._execute_tool_calls([tool_call]))
+                    for legacy_call in legacy_calls
+                ]
+                messages.append({"role": "assistant", "toolCallList": {"toolCalls": tool_calls}})
+                messages.append(self._execute_tool_calls(tool_calls))
+                if _has_frontend_write(tool_calls) and frontend_qa_requests < 2:
+                    frontend_qa_requests += 1
+                    messages.append({"role": "user", "text": FRONTEND_QA_PROMPT})
+                continue
+
+            if isinstance(text, str) and contains_pseudo_tool_call(text):
+                messages.append(
+                    {
+                        "role": "user",
+                        "text": (
+                            "Your previous response printed a pseudo tool call instead of using the provided tools. "
+                            "Repeat the action now using native toolCallList only. Do not print JSON or file contents."
+                        ),
+                    }
+                )
                 continue
 
             if status and self.verbose:
                 print(f"[agent] final status: {status}")
-            return text if isinstance(text, str) else json.dumps(message, ensure_ascii=False)
+            final_text = text if isinstance(text, str) else json.dumps(message, ensure_ascii=False)
+            messages.append({"role": "assistant", "text": final_text})
+            if remember:
+                self.messages = messages
+            return final_text
 
         raise RuntimeError(f"Reached max_iterations={self.max_iterations} without a final answer.")
+
+    def _workspace_snapshot_message(self) -> str:
+        try:
+            files = self.tool_runner.run("list_files", {"path": ".", "limit": 200})
+        except Exception as exc:
+            files = f"Не удалось получить список файлов: {exc}"
+        return (
+            "Снимок рабочей директории перед началом задачи.\n"
+            "Используй его, чтобы понимать, какие файлы и assets уже существуют.\n\n"
+            f"{files}"
+        )
 
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> dict[str, Any]:
         results: list[dict[str, Any]] = []
@@ -123,3 +185,24 @@ def _extract_message(response: dict[str, Any]) -> tuple[dict[str, Any], str | No
         raise RuntimeError(f"Unexpected message shape: {message!r}")
     status = alternative.get("status")
     return message, status if isinstance(status, str) else None
+
+
+def _needs_workspace_snapshot(messages: list[dict[str, Any]]) -> bool:
+    return not any(
+        message.get("role") == "user" and isinstance(message.get("text"), str) and message["text"].startswith("Снимок рабочей директории")
+        for message in messages
+    )
+
+
+def _has_frontend_write(tool_calls: list[dict[str, Any]]) -> bool:
+    frontend_suffixes = (".html", ".htm", ".css", ".js", ".jsx", ".tsx", ".ts")
+    for call in tool_calls:
+        function_call = call.get("functionCall", {})
+        name = canonical_tool_name(str(function_call.get("name", "")))
+        arguments = function_call.get("arguments", {})
+        if name != "write_file" or not isinstance(arguments, dict):
+            continue
+        path = str(arguments.get("path", "")).lower()
+        if path.endswith(frontend_suffixes):
+            return True
+    return False

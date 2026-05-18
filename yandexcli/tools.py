@@ -95,36 +95,36 @@ class ToolRunner:
             "run_shell": self._run_shell,
         }
         if canonical_name not in tools:
-            raise SafetyError(f"Unknown tool: {name}")
+            raise SafetyError(f"Неизвестный инструмент: {name}")
         return tools[canonical_name](arguments)
 
     def _read_file(self, arguments: dict[str, Any]) -> str:
         path = self.policy.resolve_workspace_path(str(arguments.get("path", "")))
         if not path.is_file():
-            raise SafetyError(f"File does not exist: {self._display(path)}")
+            raise SafetyError(f"Файл не найден: {self._display(path)}")
         return path.read_text(encoding="utf-8", errors="replace")
 
     def _write_file(self, arguments: dict[str, Any]) -> str:
         path = self.policy.resolve_workspace_path(str(arguments.get("path", "")))
         content = arguments.get("content")
         if not isinstance(content, str):
-            raise SafetyError("write_file requires string content.")
+            raise SafetyError("write_file требует строковое поле content.")
 
         rel = self._display(path)
         if self.policy.dry_run:
-            return f"DRY RUN: would write {len(content.encode('utf-8'))} bytes to {rel}"
-        if not self.policy.confirm(f"Write {rel}?"):
-            raise SafetyError(f"User denied write to {rel}")
+            return f"Предпросмотр: было бы записано {len(content.encode('utf-8'))} байт в {rel}"
+        if not self.policy.confirm(f"Записать файл {rel}?"):
+            raise SafetyError(f"Пользователь отклонил запись в {rel}")
 
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-        return f"Wrote {len(content.encode('utf-8'))} bytes to {rel}"
+        return f"Записано {len(content.encode('utf-8'))} байт в {rel}"
 
     def _list_files(self, arguments: dict[str, Any]) -> str:
         root = self.policy.resolve_workspace_path(str(arguments.get("path", ".")))
         limit = _int_arg(arguments.get("limit"), default=200, minimum=1, maximum=2000)
         if not root.exists():
-            raise SafetyError(f"Path does not exist: {self._display(root)}")
+            raise SafetyError(f"Путь не найден: {self._display(root)}")
         if root.is_file():
             return self._display(root)
 
@@ -136,12 +136,12 @@ class ToolRunner:
                 continue
             if child.is_file():
                 results.append(self._display(child))
-        return "\n".join(results) if results else "(no files)"
+        return "\n".join(results) if results else "(файлы не найдены)"
 
     def _search_files(self, arguments: dict[str, Any]) -> str:
         query = arguments.get("query")
         if not isinstance(query, str) or not query:
-            raise SafetyError("search_files requires a non-empty query.")
+            raise SafetyError("search_files требует непустое поле query.")
         root = self.policy.resolve_workspace_path(str(arguments.get("path", ".")))
         limit = _int_arg(arguments.get("limit"), default=100, minimum=1, maximum=1000)
 
@@ -160,16 +160,16 @@ class ToolRunner:
                             break
             except OSError:
                 continue
-        return "\n".join(matches) if matches else "(no matches)"
+        return "\n".join(matches) if matches else "(совпадения не найдены)"
 
     def _run_shell(self, arguments: dict[str, Any]) -> str:
         command = arguments.get("command")
         if not isinstance(command, str) or not command.strip():
-            raise SafetyError("run_shell requires a command.")
+            raise SafetyError("run_shell требует команду.")
         if not self.policy.allow_shell:
-            raise SafetyError("Shell tool is disabled. Re-run with --allow-shell to enable it.")
-        if not self.policy.confirm(f"Run shell command: {command!r}?"):
-            raise SafetyError("User denied shell command.")
+            raise SafetyError("Shell-инструмент выключен. Перезапустите CLI с --allow-shell, чтобы включить его.")
+        if not self.policy.confirm(f"Выполнить shell-команду: {command!r}?"):
+            raise SafetyError("Пользователь отклонил shell-команду.")
 
         completed = subprocess.run(
             command,

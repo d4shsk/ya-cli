@@ -14,7 +14,7 @@ from .input import PasteAwarePrompt, disable_bracketed_paste, enable_bracketed_p
 from .models import model_menu, resolve_model_uri
 from .safety import SafetyPolicy
 from .tools import ToolRunner
-from .ui import ChatStatus, paint, prompt as ui_prompt, render_assistant, render_header, render_notice, render_shortcuts, render_thinking, supports_color
+from .ui import ChatStatus, clear_screen, paint, prompt as ui_prompt, render_assistant, render_header, render_notice, render_shortcuts, render_thinking, supports_color
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -79,9 +79,10 @@ def run_chat(agent: Agent, *, color: bool = True) -> int:
 
     enable_bracketed_paste()
     try:
+        clear_screen(color=color)
         render_header(chat_status(agent, history_path, history_enabled), color=color)
         if not history_enabled:
-            render_notice(f"History disabled: cannot access {history_path}", color=color)
+            render_notice(f"История отключена: нет доступа к {history_path}", color=color)
         while True:
             try:
                 prompt = prompt_reader.read()
@@ -110,7 +111,7 @@ def run_chat(agent: Agent, *, color: bool = True) -> int:
                     save_history(history_path)
                 return 0
             render_thinking(color=color)
-            render_assistant(agent.run(prompt), color=color)
+            render_assistant(agent.run(prompt, remember=True), color=color)
             if history_enabled:
                 save_history(history_path)
     finally:
@@ -130,22 +131,26 @@ def handle_slash_command(command: str, agent: Agent, *, history_path: Path, hist
     if name == "/help":
         render_shortcuts(color=color)
         return False
+    if name == "/env":
+        print_env_status(agent)
+        return False
     if name == "/clear":
-        if color:
-            print("\033[2J\033[H", end="")
-        else:
-            print()
+        clear_screen(color=color)
         render_header(chat_status(agent, history_path, history_enabled), color=color)
         return False
     if name == "/history":
-        status = "enabled" if history_enabled else "disabled"
-        print(f"History: {status} ({history_path})")
+        status = "включена" if history_enabled else "отключена"
+        print(f"История: {status} ({history_path})")
+        return False
+    if name == "/forget":
+        agent.messages = None
+        render_notice("Контекст диалога очищен.", color=color)
         return False
     if name == "/model":
         if not arg:
-            print(paint("Current model: ", enabled=color) + agent.client.model_uri)
+            print(paint("Текущая модель: ", enabled=color) + agent.client.model_uri)
             print(model_menu(agent.client.folder_id))
-            choice = input("model> ").strip()
+            choice = input("модель> ").strip()
         else:
             choice = arg
 
@@ -153,13 +158,15 @@ def handle_slash_command(command: str, agent: Agent, *, history_path: Path, hist
             return False
         model_uri = resolve_model_uri(choice, agent.client.folder_id)
         if model_uri is None:
-            print(f"Unknown model selection: {choice}")
+            print(f"Неизвестная модель: {choice}")
             return False
         agent.client = replace(agent.client, model_uri=model_uri)
-        render_notice(f"Model set to: {agent.client.model_uri}", color=color)
+        clear_screen(color=color)
+        render_header(chat_status(agent, history_path, history_enabled), color=color)
+        render_notice(f"Модель выбрана: {agent.client.model_uri}", color=color)
         return False
 
-    print(f"Unknown command: {name}. Type /help.")
+    print(f"Неизвестная команда: {name}. Введите /help.")
     return False
 
 
@@ -175,6 +182,27 @@ def load_dotenv(path: Path) -> None:
         value = value.strip().strip("'\"")
         if key and key not in os.environ:
             os.environ[key] = value
+
+
+def print_env_status(agent: Agent) -> None:
+    values = {
+        "YANDEX_CLOUD_FOLDER": os.getenv("YANDEX_CLOUD_FOLDER") or os.getenv("YANDEX_FOLDER_ID"),
+        "YANDEX_IAM_TOKEN": os.getenv("YANDEX_IAM_TOKEN"),
+        "YANDEX_API_KEY": os.getenv("YANDEX_API_KEY"),
+        "YANDEX_MODEL_URI": os.getenv("YANDEX_MODEL_URI"),
+    }
+    print("Переменные окружения:")
+    print(f"  YANDEX_CLOUD_FOLDER: {_masked_status(values['YANDEX_CLOUD_FOLDER'])}")
+    print(f"  YANDEX_IAM_TOKEN: {_masked_status(values['YANDEX_IAM_TOKEN'])}")
+    print(f"  YANDEX_API_KEY: {_masked_status(values['YANDEX_API_KEY'])}")
+    print(f"  YANDEX_MODEL_URI: {_masked_status(values['YANDEX_MODEL_URI'])}")
+    print(f"  активная модель: {agent.client.model_uri}")
+
+
+def _masked_status(value: str | None) -> str:
+    if not value:
+        return "не задано"
+    return f"задано ({len(value)} символов)"
 
 
 def project_root() -> Path:

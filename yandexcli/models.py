@@ -14,10 +14,10 @@ class ModelOption:
 
 
 MODEL_OPTIONS: list[ModelOption] = [
-    ModelOption("yandexgpt-5-lite", "YandexGPT 5 Lite latest", "gpt://{folder_id}/yandexgpt-5-lite/latest"),
-    ModelOption("alice", "Alice AI LLM latest", "gpt://{folder_id}/aliceai-llm/latest"),
-    ModelOption("yandexgpt-5-pro", "YandexGPT 5 Pro latest", "gpt://{folder_id}/yandexgpt-5-pro/latest"),
-    ModelOption("yandexgpt-5.1", "YandexGPT 5.1 latest", "gpt://{folder_id}/yandexgpt-5.1/latest"),
+    ModelOption("yandexgpt-5-lite", "YandexGPT 5 Lite, актуальная версия", "gpt://{folder_id}/yandexgpt-5-lite/latest"),
+    ModelOption("alice", "Alice AI LLM, актуальная версия", "gpt://{folder_id}/aliceai-llm/latest"),
+    ModelOption("yandexgpt-5-pro", "YandexGPT 5 Pro, актуальная версия", "gpt://{folder_id}/yandexgpt-5-pro/latest"),
+    ModelOption("yandexgpt-5.1", "YandexGPT 5.1, актуальная версия", "gpt://{folder_id}/yandexgpt-5.1/latest"),
 ]
 
 
@@ -43,5 +43,5 @@ def model_menu(folder_id: str) -> str:
     lines = []
     for index, option in enumerate(MODEL_OPTIONS, 1):
         lines.append(f"{index}. {option.key} - {option.label} ({option.uri(folder_id)})")
-    lines.append("Or paste a full gpt://... model URI.")
+    lines.append("Или вставьте полный URI модели вида gpt://...")
     return "\n".join(lines)

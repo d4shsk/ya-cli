@@ -18,6 +18,7 @@ MAGENTA = "\033[35m"
 RED = "\033[31m"
 YELLOW = "\033[33m"
 GRAY = "\033[90m"
+WHITE = "\033[37m"
 BG = "\033[48;5;236m"
 
 
@@ -59,17 +60,18 @@ def render_header(status: ChatStatus, *, color: bool = True) -> None:
     width = shutil.get_terminal_size((100, 24)).columns
     print()
     logo = [
-        "  ██╗   ██╗",
-        "  ╚██╗ ██╔╝",
-        "   ╚████╔╝ ",
-        "    ╚██╔╝  ",
-        "     ██║   ",
-        "     ╚═╝   ",
+        "    ████████    ",
+        "  ████████████  ",
+        " ██████████████ ",
+        " █████  ▲  ████ ",
+        " ████  ▲▲▲  ███ ",
+        "  ████████████  ",
+        "    ████████    ",
     ]
     title = paint("YandexGPT CLI", BOLD, enabled=color) + " " + paint(f"v{__version__}", GRAY, enabled=color)
-    auth = paint("●", GREEN, enabled=color) + " Credentials loaded " + paint("/env", GRAY, enabled=color)
-    model = paint("◆", CYAN, enabled=color) + f" Model: {model_name(status.model_uri)} " + paint("/model", GRAY, enabled=color)
-    hints = paint("? for shortcuts", GRAY, enabled=color)
+    auth = paint("●", GREEN, enabled=color) + " Доступ: настроен " + paint("/env", GRAY, enabled=color)
+    model = paint("◆", CYAN, enabled=color) + f" Модель: {model_name(status.model_uri)} " + paint("/model", GRAY, enabled=color)
+    hints = paint("? подсказки", GRAY, enabled=color)
 
     for index, line in enumerate(logo):
         colored = _logo_line(line, index, color=color)
@@ -84,20 +86,21 @@ def render_header(status: ChatStatus, *, color: bool = True) -> None:
 
     print()
     print(paint("─" * max(20, width - 2), GRAY, enabled=color))
-    print(_status_row(status, width, color=color))
     print(_input_hint(width, color=color))
     print(_bottom_row(status, width, color=color))
     print(paint("─" * max(20, width - 2), GRAY, enabled=color))
-    print(hints.rjust(width) if color else "? for shortcuts".rjust(width))
+    print(hints.rjust(width) if color else "? подсказки".rjust(width))
 
 
 def render_shortcuts(*, color: bool = True) -> None:
     rows = [
-        ("/help", "show commands"),
-        ("/model", "choose model"),
-        ("/history", "show history file"),
-        ("/clear", "redraw screen"),
-        ("/quit", "exit"),
+        ("/help", "показать команды"),
+        ("/env", "показать статус доступа"),
+        ("/model", "выбрать модель"),
+        ("/forget", "очистить контекст диалога"),
+        ("/history", "показать файл истории"),
+        ("/clear", "перерисовать экран"),
+        ("/quit", "выйти"),
     ]
     for command, description in rows:
         print(f"{paint(command.ljust(10), CYAN, enabled=color)} {description}")
@@ -108,7 +111,6 @@ def prompt(*, color: bool = True) -> str:
 
 
 def render_assistant(text: str, *, color: bool = True) -> None:
-    print(paint("YandexGPT", MAGENTA, BOLD, enabled=color))
     print(text)
 
 
@@ -124,38 +126,42 @@ def render_error(text: str, *, color: bool = True) -> None:
     print(paint(text, RED, enabled=color))
 
 
+def clear_screen(*, color: bool = True) -> None:
+    if color:
+        print("\033[2J\033[H", end="")
+    else:
+        print()
+
+
 def _logo_line(line: str, index: int, *, color: bool) -> str:
-    colors = [BLUE, CYAN, GREEN, GREEN, CYAN, BLUE]
-    return paint(line, colors[index % len(colors)], BOLD, enabled=color)
-
-
-def _status_row(status: ChatStatus, width: int, *, color: bool) -> str:
-    left = paint("Shift+Tab", GRAY, enabled=color) + " to accept edits"
-    right = f"{paint('history', GRAY, enabled=color)} {'on' if status.history_enabled else 'off'}"
-    gap = max(1, width - len(_plain(left)) - len(_plain(right)) - 2)
-    return f" {left}{' ' * gap}{right} "
+    colors = [BLUE, BLUE, MAGENTA, MAGENTA, MAGENTA, BLUE, BLUE]
+    if "▲" not in line:
+        return paint(line, colors[index % len(colors)], BOLD, enabled=color)
+    result = ""
+    for char in line:
+        if char == "▲":
+            result += paint(char, WHITE, BOLD, enabled=color)
+        else:
+            result += paint(char, colors[index % len(colors)], BOLD, enabled=color)
+    return result
 
 
 def _input_hint(width: int, *, color: bool) -> str:
-    hint = " Type your message or @path/to/file"
+    hint = " Введите промпт, вставьте текст или используйте /help"
     visible = hint[: max(1, width - 4)]
     return paint("›", CYAN, BOLD, enabled=color) + paint(visible, BG, GRAY, enabled=color)
 
 
 def _bottom_row(status: ChatStatus, width: int, *, color: bool) -> str:
     workspace = short_home(status.workspace)
-    sandbox = "workspace"
-    shell = "shell on" if status.allow_shell else "shell off"
-    dry_run = "dry-run" if status.dry_run else "write mode"
     model = model_name(status.model_uri)
-    left = f"{paint('workspace', GRAY, enabled=color)} {workspace}"
-    mid = f"{paint('sandbox', GRAY, enabled=color)} {sandbox} · {shell} · {dry_run}"
+    left = f"{paint('папка', GRAY, enabled=color)} {workspace}"
     right = f"{paint('/model', GRAY, enabled=color)} {model}"
-    plain_len = len(_plain(left)) + len(_plain(mid)) + len(_plain(right)) + 4
+    plain_len = len(_plain(left)) + len(_plain(right)) + 4
     if plain_len >= width:
-        return f" {left}\n {mid}\n {right}"
-    gap = max(2, (width - plain_len) // 2)
-    return f" {left}{' ' * gap}{mid}{' ' * gap}{right}"
+        return f" {left}\n {right}"
+    gap = max(2, width - plain_len)
+    return f" {left}{' ' * gap}{right}"
 
 
 def _plain(text: str) -> str:
