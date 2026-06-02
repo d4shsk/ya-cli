@@ -1,0 +1,47 @@
+{
+  // Дефолт для яндекса
+  "model": "yandex/alice",
+  "provider": {
+    "yandex": {
+      "name": "Yandex Foundation Models",
+      "npm": "yandex",
+      "options": {
+        "baseURL": "https://llm.api.cloud.yandex.net/foundationModels/v1",
+        "folderId": "your_yandex_cloud_folder_id",
+        "iamToken": "your_yandex_iam_token",
+        "apiKey": ""
+      },
+      "models": {
+        "alice": { "name": "Alice AI LLM", "modelUri": "gpt://{folderId}/aliceai-llm/latest", "attachment": false, "modalities": { "input": ["text"], "output": ["text"] } },
+        "yandexgpt-5-lite": { "name": "YandexGPT 5 Lite", "modelUri": "gpt://{folderId}/yandexgpt-5-lite/latest", "attachment": false, "modalities": { "input": ["text"], "output": ["text"] } },
+        "yandexgpt-5-pro": { "name": "YandexGPT 5 Pro", "modelUri": "gpt://{folderId}/yandexgpt-5-pro/latest", "attachment": false, "modalities": { "input": ["text"], "output": ["text"] } },
+        "yandexgpt-5.1": { "name": "YandexGPT 5.1", "modelUri": "gpt://{folderId}/yandexgpt-5.1/latest", "attachment": false, "modalities": { "input": ["text"], "output": ["text"] } },
+        "gemma-3-27b-it": { "name": "Gemma 3 27B IT", "modelUri": "gpt://{folderId}/gemma-3-27b-it", "attachment": true, "modalities": { "input": ["text", "image"], "output": ["text"] } }
+      }
+    },
+    // Пример openai-compativle провайдера. Вам нужно поменять name, apiKey, baseURL
+    "any-openai-provider": {
+      "name": "name",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "base-url",
+        "apiKey": "key"
+      },
+      "models": {
+        "gpt-5.5": { "name": "GPT 5.5", "attachment": true, "modalities": { "input": ["text", "image"], "output": ["text"] } }
+      }
+    },
+    // Пример anthropic провайдера, также менять baseURL, name, key
+    "any-anthropic-provider": {
+      "npm": "@ai-sdk/anthropic",
+      "name": "name`",
+      "options": {
+        "baseURL": "https://vibecode.moe/v1",
+        "apiKey": "key"
+      },
+      "models": {
+        "claude-opus-4-8": { "name": "Claude Opus 4.8", "attachment": true, "modalities": { "input": ["text", "image"], "output": ["text"] } }
+      }
+    }
+  }
+}

@@ -18,6 +18,7 @@ MODEL_OPTIONS: list[ModelOption] = [
     ModelOption("alice", "Alice AI LLM, актуальная версия", "gpt://{folder_id}/aliceai-llm/latest"),
     ModelOption("yandexgpt-5-pro", "YandexGPT 5 Pro, актуальная версия", "gpt://{folder_id}/yandexgpt-5-pro/latest"),
     ModelOption("yandexgpt-5.1", "YandexGPT 5.1, актуальная версия", "gpt://{folder_id}/yandexgpt-5.1/latest"),
+    ModelOption("gemma-3-27b-it", "Gemma 3 27B IT, мультимодальная vision-модель", "gpt://{folder_id}/gemma-3-27b-it"),
 ]
 
 

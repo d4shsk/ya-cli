@@ -15,6 +15,7 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(resolve_model_uri("2", "f"), "gpt://f/aliceai-llm/latest")
         self.assertEqual(resolve_model_uri("yandexgpt-5-pro", "f"), "gpt://f/yandexgpt-5-pro/latest")
         self.assertEqual(resolve_model_uri("yandexgpt-5.1", "f"), "gpt://f/yandexgpt-5.1/latest")
+        self.assertEqual(resolve_model_uri("gemma-3-27b-it", "f"), "gpt://f/gemma-3-27b-it")
         self.assertEqual(resolve_model_uri("gpt://f/custom/latest", "f"), "gpt://f/custom/latest")
         self.assertIsNone(resolve_model_uri("unknown", "f"))
 

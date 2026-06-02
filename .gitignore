@@ -1,23 +1,38 @@
+# Config files (keep example public)
+yacli.jsonc
+!yacli.example.jsonc
 .env
 .env.*
-!.env.example
-.DS_Store
+
+# Python bytecode and caches
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 coverage.xml
 htmlcov/
+*.egg-info/
+pip-wheel-metadata/
+
+# Environments
 .venv/
 venv/
 env/
 dist/
 build/
-*.egg-info/
-pip-wheel-metadata/
 
-# Local playgrounds and tool state
+# IDEs and OS junk
+.DS_Store
+.idea/
+.vscode/
+
+# Local playgrounds, test directories, and tool state
+tests/
 user-test/
+.kilo/
 .omg/
+test_tab.py
+test_tab_color.py

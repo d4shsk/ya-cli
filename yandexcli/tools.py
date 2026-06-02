@@ -9,6 +9,10 @@ from typing import Any, Callable
 from .safety import SafetyError, SafetyPolicy
 
 
+MAX_READ_BYTES = 300 * 1024 * 1024
+MAX_SEARCH_FILE_BYTES = 300 * 1024 * 1024
+
+
 TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "function": {
@@ -34,6 +38,22 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "content": {"type": "string", "description": "Full file content to write."},
                 },
                 "required": ["path", "content"],
+            },
+        }
+    },
+    {
+        "function": {
+            "name": "edit_file",
+            "description": "Replace an exact UTF-8 text fragment in an existing workspace file. Prefer this for focused edits.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Path relative to the workspace."},
+                    "old_text": {"type": "string", "description": "Exact text currently present in the file."},
+                    "new_text": {"type": "string", "description": "Replacement text."},
+                    "replace_all": {"type": "boolean", "description": "Replace every occurrence instead of requiring exactly one.", "default": False},
+                },
+                "required": ["path", "old_text", "new_text"],
             },
         }
     },
@@ -90,6 +110,7 @@ class ToolRunner:
         tools: dict[str, Callable[[dict[str, Any]], str]] = {
             "read_file": self._read_file,
             "write_file": self._write_file,
+            "edit_file": self._edit_file,
             "list_files": self._list_files,
             "search_files": self._search_files,
             "run_shell": self._run_shell,
@@ -102,7 +123,8 @@ class ToolRunner:
         path = self.policy.resolve_workspace_path(str(arguments.get("path", "")))
         if not path.is_file():
             raise SafetyError(f"Файл не найден: {self._display(path)}")
-        return path.read_text(encoding="utf-8", errors="replace")
+        data = _read_text_bytes(path, max_bytes=MAX_READ_BYTES)
+        return data.decode("utf-8", errors="replace")
 
     def _write_file(self, arguments: dict[str, Any]) -> str:
         path = self.policy.resolve_workspace_path(str(arguments.get("path", "")))
@@ -113,12 +135,43 @@ class ToolRunner:
         rel = self._display(path)
         if self.policy.dry_run:
             return f"Предпросмотр: было бы записано {len(content.encode('utf-8'))} байт в {rel}"
-        if not self.policy.confirm(f"Записать файл {rel}?"):
+        if not self.policy.confirm_file_write(f"Записать файл {rel}?"):
             raise SafetyError(f"Пользователь отклонил запись в {rel}")
 
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         return f"Записано {len(content.encode('utf-8'))} байт в {rel}"
+
+    def _edit_file(self, arguments: dict[str, Any]) -> str:
+        path = self.policy.resolve_workspace_path(str(arguments.get("path", "")))
+        if not path.is_file():
+            raise SafetyError(f"Файл не найден: {self._display(path)}")
+
+        old_text = arguments.get("old_text")
+        new_text = arguments.get("new_text")
+        replace_all = bool(arguments.get("replace_all", False))
+        if not isinstance(old_text, str) or not old_text:
+            raise SafetyError("edit_file требует непустое строковое поле old_text.")
+        if not isinstance(new_text, str):
+            raise SafetyError("edit_file требует строковое поле new_text.")
+
+        content = _read_text_bytes(path, max_bytes=MAX_READ_BYTES).decode("utf-8", errors="replace")
+        count = content.count(old_text)
+        if count == 0:
+            raise SafetyError("edit_file не нашел old_text в файле.")
+        if count > 1 and not replace_all:
+            raise SafetyError(f"edit_file нашел old_text {count} раз(а); уточните фрагмент или передайте replace_all=true.")
+
+        updated = content.replace(old_text, new_text) if replace_all else content.replace(old_text, new_text, 1)
+        rel = self._display(path)
+        replacements = count if replace_all else 1
+        if self.policy.dry_run:
+            return f"Предпросмотр: было бы заменено {replacements} фрагмент(а/ов) в {rel}"
+        if not self.policy.confirm_file_write(f"Изменить файл {rel} ({replacements} замен)?"):
+            raise SafetyError(f"Пользователь отклонил изменение {rel}")
+
+        path.write_text(updated, encoding="utf-8")
+        return f"Изменено {replacements} фрагмент(а/ов) в {rel}"
 
     def _list_files(self, arguments: dict[str, Any]) -> str:
         root = self.policy.resolve_workspace_path(str(arguments.get("path", ".")))
@@ -153,12 +206,13 @@ class ToolRunner:
             if _skip_path(path) or not path.is_file():
                 continue
             try:
-                for line_no, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                data = _read_text_bytes(path, max_bytes=MAX_SEARCH_FILE_BYTES)
+                for line_no, line in enumerate(data.decode("utf-8", errors="replace").splitlines(), 1):
                     if query in line:
                         matches.append(f"{self._display(path)}:{line_no}: {line[:300]}")
                         if len(matches) >= limit:
                             break
-            except OSError:
+            except (OSError, SafetyError):
                 continue
         return "\n".join(matches) if matches else "(совпадения не найдены)"
 
@@ -168,7 +222,7 @@ class ToolRunner:
             raise SafetyError("run_shell требует команду.")
         if not self.policy.allow_shell:
             raise SafetyError("Shell-инструмент выключен. Перезапустите CLI с --allow-shell, чтобы включить его.")
-        if not self.policy.confirm(f"Выполнить shell-команду: {command!r}?"):
+        if not self.policy.confirm_shell(f"Выполнить shell-команду: {command!r}?"):
             raise SafetyError("Пользователь отклонил shell-команду.")
 
         completed = subprocess.run(
@@ -208,6 +262,24 @@ def _int_arg(value: Any, *, default: int, minimum: int, maximum: int) -> int:
     return max(minimum, min(maximum, number))
 
 
+def _read_text_bytes(path: Path, *, max_bytes: int) -> bytes:
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        raise SafetyError(f"Не удалось прочитать файл: {path}") from exc
+    if size > max_bytes:
+        raise SafetyError(f"Файл слишком большой для чтения инструментом: {path.name} ({size} байт, лимит {max_bytes}).")
+
+    data = path.read_bytes()
+    if _looks_binary(data):
+        raise SafetyError(f"Файл похож на бинарный и не будет прочитан как текст: {path.name}")
+    return data
+
+
+def _looks_binary(data: bytes) -> bool:
+    return b"\x00" in data[:4096]
+
+
 def canonical_tool_name(name: str) -> str:
-    aliases = {"write": "write_file", "read": "read_file", "shell": "run_shell"}
+    aliases = {"write": "write_file", "read": "read_file", "edit": "edit_file", "shell": "run_shell"}
     return aliases.get(name, name)

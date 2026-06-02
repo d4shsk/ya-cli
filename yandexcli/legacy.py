@@ -8,7 +8,7 @@ from typing import Any
 
 LEGACY_START = "[TOOL_CALL_START]"
 LEGACY_END = "[TOOL_CALL_END]"
-BRACKET_TOOL_NAMES = {"read_file", "write_file", "list_files", "search_files", "run_shell", "read", "write", "shell"}
+BRACKET_TOOL_NAMES = {"read_file", "write_file", "edit_file", "list_files", "search_files", "run_shell", "read", "write", "edit", "shell"}
 
 
 @dataclass(frozen=True)

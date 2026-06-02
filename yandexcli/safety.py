@@ -12,6 +12,7 @@ class SafetyError(RuntimeError):
 class SafetyPolicy:
     workspace: Path
     assume_yes: bool = False
+    assume_yes_shell: bool = False
     dry_run: bool = False
     allow_shell: bool = False
 
@@ -33,8 +34,17 @@ class SafetyPolicy:
 
         return resolved
 
-    def confirm(self, prompt: str) -> bool:
+    def confirm_file_write(self, prompt: str) -> bool:
         if self.assume_yes:
             return True
-        answer = input(f"{prompt} [y/N] ").strip().lower()
-        return answer in {"y", "yes", "д", "да"}
+        return _confirm(prompt)
+
+    def confirm_shell(self, prompt: str) -> bool:
+        if self.assume_yes_shell:
+            return True
+        return _confirm(prompt)
+
+
+def _confirm(prompt: str) -> bool:
+    answer = input(f"{prompt} [y/N] ").strip().lower()
+    return answer in {"y", "yes", "д", "да"}
