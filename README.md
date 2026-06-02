@@ -53,24 +53,24 @@ CLI ищет конфиг в таком порядке: путь из `--config`
 
 ```jsonc
 {
-  "model": "vibecode/gpt-5.5",
+  "model": "openai/gpt-5.5",
   "provider": {
-    "vibecode": {
-      "name": "vibecode.moe",
+    "provider": {
+      "name": "provider",
       "npm": "@ai-sdk/openai-compatible",
       "options": {
-        "baseURL": "https://vibecode.moe/v1",
+        "baseURL": "https://provider/v1",
         "apiKey": "key"
       },
       "models": {
         "gpt-5.5": { "name": "GPT 5.5", "attachment": true, "modalities": { "input": ["text", "image"], "output": ["text"] } }
       }
     },
-    "vibecode-claude": {
-      "name": "vibecode.moe - Claude",
+    "provider-claude": {
+      "name": "provider - Claude",
       "npm": "@ai-sdk/anthropic",
       "options": {
-        "baseURL": "https://vibecode.moe/v1",
+        "baseURL": "https://provider/v1",
         "apiKey": "key"
       },
       "models": {
@@ -135,8 +135,8 @@ yandexgpt --workspace /path/to/project
 /mode                     переключить План/Код
 /forget                   очистить контекст текущего диалога
 /model yandex/alice       выбрать Alice AI
-/model vibecode/gpt-5.5   выбрать OpenAI-compatible модель
-/model vibecode-claude/claude-sonnet-4-6
+/model provider/gpt-5.5   выбрать OpenAI-compatible модель
+/model provider-claude/claude-sonnet-4-6
 /history                  показать путь к истории
 /clear                    перерисовать экран
 /quit                     выйти
@@ -150,7 +150,7 @@ yandexgpt --workspace /path/to/project
 1. yandex/alice - Alice AI LLM
 2. yandex/yandexgpt-5-lite - YandexGPT 5 Lite
 3. yandex/gemma-3-27b-it - Gemma 3 27B IT
-4. vibecode/gpt-5.5 - GPT 5.5
+4. provider/gpt-5.5 - GPT 5.5
 ```
 
 Модель по умолчанию:
@@ -168,7 +168,7 @@ yandexgpt --allow-shell --yes-shell "запусти тесты"
 yandexgpt --debug-agent "проверь tool calls"
 yandexgpt --plain
 yandexgpt --session 1
-yandexgpt --model vibecode/gpt-5.5
+yandexgpt --model provider/gpt-5.5
 yandexgpt --config ~/.config/yandexgpt/yacli.jsonc
 ```
 
