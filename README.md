@@ -2,6 +2,46 @@
 
 Терминальный coding agent для моделей YandexGPT и Alice AI. CLI использует нативный цикл Yandex `toolCallList` / `toolResultList`, поэтому модель вызывает инструменты через API, а не печатает псевдо-tool-call в чат.
 
+## 0. Требования к платформе
+
+> **Только Linux и macOS.** Нативный Windows не поддерживается.
+>
+> Интерактивный ввод использует POSIX-модули стандартной библиотеки (`readline`, `termios`, `tty`, `select` по файловым дескрипторам), которых нет в Windows-сборке Python. На Windows запуск падает с `ModuleNotFoundError: No module named 'readline'` (а после него — `termios`), и обойти это установкой пакетов нельзя.
+>
+> Пользователям Windows: установите [WSL](https://learn.microsoft.com/windows/wsl/install) (`wsl --install`) и выполняйте все шаги ниже внутри Linux-окружения.
+
+### Быстрый старт через WSL (Windows)
+
+1. В PowerShell установите WSL с Ubuntu (нужны права администратора) и перезагрузитесь, если попросит:
+
+   ```powershell
+   wsl --install -d Ubuntu
+   ```
+
+2. Запустите Ubuntu (из меню «Пуск» или командой `wsl`) и установите Python с pip:
+
+   ```bash
+   sudo apt update
+   sudo apt install -y python3 python3-pip python3-venv git
+   ```
+
+3. Перейдите в проект. Папка с Windows доступна внутри WSL через `/mnt/c/...`:
+
+   ```bash
+   cd /mnt/c/Users/<ваш-пользователь>/path/to/ya-cli
+   ```
+
+   Либо склонируйте репозиторий в домашнюю папку WSL (так быстрее работает ФС):
+
+   ```bash
+   git clone https://github.com/d4shsk/ya-cli.git ~/ya-cli
+   cd ~/ya-cli
+   ```
+
+4. Дальше выполняйте обычные шаги: [конфиг](#1-конфиг) и [установку](#2-установка-команды). Команды `python3`, `pip`, `yandexgpt` внутри WSL работают как описано ниже.
+
+> Все команды из разделов ниже выполняются внутри WSL (Ubuntu), а не в PowerShell.
+
 ## 1. Конфиг
 
 Ключи, модели и провайдеры задаются в `yacli.jsonc`. Можно начать с шаблона:
